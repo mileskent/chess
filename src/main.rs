@@ -30,7 +30,13 @@ fn i2xy(i: u32) -> (u32, u32) {
    (x, y)
 }
 
-fn xy2i(x: u32, y: u32) -> u32 {
+fn i2XY(i: u32) -> (u32, u32) {
+   let x = (i % SIDE_LENGTH);
+   let y = i / SIDE_LENGTH;
+   (x, y)
+}
+
+fn XY2i(x: u32, y: u32) -> u32 {
     x + y*SIDE_LENGTH
 }
 
@@ -43,6 +49,77 @@ fn conf() -> Conf {
         window_height:size,
         //you can add other options too, or just use the default ones:
         ..Default::default()
+    }
+}
+
+fn is_appropriate_move(pieces: Vec<char>, mut piece_char: char, i_start: u32, i_try: u32) -> bool {
+    piece_char = piece_char.to_lowercase().next().unwrap();
+
+    let (mut xs, mut ys) = i2XY(i_start);
+    let (mut xt, mut yt) = i2XY(i_try);
+
+    match piece_char {
+        'r' => { // BROKEN
+           // in + 
+            let is_plus = xs == xt || ys == yt;
+            let mut isnt_blocked: bool = true;
+            if is_plus {
+                if xs != xt { // horizontal
+                    if xs > xt {
+                        let mut t = xs;
+                        xs = xt;
+                        xt = t;
+                    }
+                    for x_square in xs..xt { // exclusive range because should be able to capture
+                        if (x_square == xs) {
+                            continue;
+                        }
+                        if pieces[XY2i(x_square, ys) as usize] != 'X' {
+                            isnt_blocked = false;
+                            break;
+                        }
+                    }
+                } 
+                else { // vertical
+                    if ys > yt {
+                        let t = ys;
+                        ys = yt;
+                        yt = t;
+                    }
+                    println!("ys: {ys}, yt: {yt}");
+                    for y_square in ys..yt { // exclusive range because should be able to capture
+                        if (y_square == ys) {
+                            continue;
+                        }
+                        println!("{}", pieces[XY2i(ys, y_square) as usize]);
+                        if pieces[XY2i(ys, y_square) as usize] != 'X' {
+                            isnt_blocked = false;
+                            break;
+                        }
+                    }
+                }
+                println!("{}", isnt_blocked);
+            }
+            is_plus && isnt_blocked
+        }
+        'n' => {
+            false
+        }
+        'b' => {
+            false
+        }
+        'q' => {
+            false
+        }
+        'k' => {
+            false 
+        }
+        'p' => {
+            true
+        }
+        _ => {
+            false
+        }
     }
 }
 
@@ -125,8 +202,13 @@ fn draw_board() {
     }
 }
 
+fn is_white(c: char) -> bool {
+    c.is_ascii_uppercase()
+}
+
 #[macroquad::main(conf)]
 async fn main() {
+
 
     // let fen: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR";
     let mut pieces: Vec<char> ="rnbqkbnrppppppppXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXPPPPPPPPRBNQKBNR".chars().collect();
@@ -162,7 +244,7 @@ async fn main() {
             dragging = true;
             let (click_x,click_y) = m2xy();
             // What piece did you click on?
-            last_selected = Some(xy2i(click_x, click_y) as u32);
+            last_selected = Some(XY2i(click_x, click_y) as u32);
             if let Some(value) = last_selected {
                 last_piece = pieces[value as usize];
                 pieces[value as usize] = 'X';
@@ -179,10 +261,19 @@ async fn main() {
 
             if is_mouse_button_released(MouseButton::Left) {
                 dragging = false;
-                let legal: bool = true;
+                // Check if legal
+                let mut legal: bool = false;
                 let (a,b) = m2xy(); 
-                let now_selected = xy2i(a,b) as u32; 
+                let now_selected = XY2i(a,b) as u32; 
+                let now_piece = pieces[now_selected as usize];
                 if let Some(value) = last_selected {
+
+                    let is_opposite_color: bool = !(is_white(last_piece) == is_white(now_piece) && now_piece != 'X');
+
+                    if is_opposite_color && is_appropriate_move(pieces.clone(),last_piece, value, now_selected){
+                        legal = true;
+                    }
+
                     // if illegel or you didn't move the piece
                     if !legal || now_selected == value {
                         pieces[value as usize] = last_piece;

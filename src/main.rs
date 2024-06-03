@@ -2,48 +2,48 @@ use macroquad::prelude::*;
 use std::collections::HashMap;
 use std::process;
 
-const SIDE_LENGTH : i32 = 8;
-const S: i32 = 100;
+const SIDE_LENGTH : i8 = 8;
+const S: i16 = 100;
 
 macro_rules! SQUARE_WIDTH {
     () => {
-        (screen_width() / SIDE_LENGTH as f32) as i32
+        (screen_width() / SIDE_LENGTH as f32) as i16
     };
 }
 
 macro_rules! SQUARE_HEIGHT {
     () => {
-        (screen_height() / SIDE_LENGTH as f32) as i32
+        (screen_height() / SIDE_LENGTH as f32) as i16
     };
 }
 
-fn m2XY() -> (i32, i32) {
+fn m2XY() -> (i8, i8) {
     let (mut x, mut y) = mouse_position();
     x /= S as f32;
     y /= S as f32;
-    (x as i32, y as i32)
+    (x as i8, y as i8)
 }
 
-fn i2xy(i: u32) -> (i32, i32) {
-    let i_t = i as i32;
-    let x = i_t % SIDE_LENGTH * SQUARE_WIDTH!();
-    let y = i_t / SIDE_LENGTH * SQUARE_HEIGHT!();
-    (x, y)
+fn i2xy(i: usize) -> (f32, f32) { // xy are screen coordinates
+    let i_t: i8 = i as i8;
+    let x = (i_t % SIDE_LENGTH) as i16 * SQUARE_WIDTH!();
+    let y = (i_t / SIDE_LENGTH) as i16 * SQUARE_HEIGHT!();
+    (x as f32, y as f32)
 }
 
-fn i2XY(i: u32) -> (i32, i32) {
-    let i_t = i as i32;
+fn i2XY(i: usize) -> (i8, i8) { // XY are board coordinates
+    let i_t = i as i8;
     let x = i_t % SIDE_LENGTH;
     let y = i_t / SIDE_LENGTH;
     (x, y)
 }
 
-fn XY2i(x: i32, y: i32) -> u32 {
+fn XY2i(x: i8, y: i8) -> usize {
     (x + y*SIDE_LENGTH).try_into().unwrap()
 }
 
 fn conf() -> Conf {
-    let size = (S * SIDE_LENGTH) as i32;
+    let size = (S * SIDE_LENGTH as i16) as i32;
     Conf {
         window_title: "Chess - Prototype".to_string(), //this field is not optional!
         fullscreen:false,
@@ -54,11 +54,11 @@ fn conf() -> Conf {
     }
 }
 
-fn is_in_bounds(X: i32, Y: i32) -> bool {
-    X >= 0 || X < SIDE_LENGTH as i32 && Y >= 0 || Y < SIDE_LENGTH as i32
+fn is_in_bounds(X: i8, Y: i8) -> bool {
+    X >= 0 || X < SIDE_LENGTH as i8 && Y >= 0 || Y < SIDE_LENGTH as i8
 }
 
-fn rook_isnt_blocked(i_start: u32, i_try: u32, pieces: Vec<char>) -> bool {
+fn rook_isnt_blocked(i_start: usize, i_try: usize, pieces: Vec<char>) -> bool {
     // Assumes that is_plus is true
     let (mut xs, mut ys) = i2XY(i_start);
     let (mut xt, mut yt) = i2XY(i_try);
@@ -70,7 +70,7 @@ fn rook_isnt_blocked(i_start: u32, i_try: u32, pieces: Vec<char>) -> bool {
             xt = t;
         }
         for x_square in (xs+1)..xt { // exclusive range because should be able to capture
-            if pieces[XY2i(x_square, ys) as usize] != 'X' {
+            if pieces[XY2i(x_square, ys)] != 'X' {
                 isnt_blocked = false;
                 break;
             }
@@ -83,7 +83,7 @@ fn rook_isnt_blocked(i_start: u32, i_try: u32, pieces: Vec<char>) -> bool {
             yt = t;
         }
         for y_square in (ys+1)..yt { // exclusive range because should be able to capture
-            if pieces[XY2i(xs, y_square) as usize] != 'X' {
+            if pieces[XY2i(xs, y_square)] != 'X' {
                 isnt_blocked = false;
                 break;
             }
@@ -93,15 +93,15 @@ fn rook_isnt_blocked(i_start: u32, i_try: u32, pieces: Vec<char>) -> bool {
 }
 
 
-fn bishop_isnt_blocked(i_start: u32, i_try: u32, pieces: Vec<char>) -> bool {
+fn bishop_isnt_blocked(i_start: usize, i_try: usize, pieces: Vec<char>) -> bool {
     let (mut xs, mut ys) = i2XY(i_start);
     let (mut xt, mut yt) = i2XY(i_try);
     let mut bishop_isnt_blocked = true;
 
     for x_square in if xs < xt {(xs+1)..xt} else {xt..xs}  {
         let y = (yt - ys)/(xt - xs) * (x_square - xs) + ys;
-        let captured_square = pieces[XY2i(x_square, y) as usize];
-        if captured_square != 'X' && pieces[i_start as usize].is_ascii_uppercase() == captured_square.is_ascii_uppercase() {
+        let captured_square = pieces[XY2i(x_square, y)];
+        if captured_square != 'X' && pieces[i_start].is_ascii_uppercase() == captured_square.is_ascii_uppercase() {
             bishop_isnt_blocked = false;
             break;
         }
@@ -109,7 +109,7 @@ fn bishop_isnt_blocked(i_start: u32, i_try: u32, pieces: Vec<char>) -> bool {
     bishop_isnt_blocked
 }
 
-fn is_appropriate_move(pieces: Vec<char>, mut piece_char: char, i_start: u32, i_try: u32) -> bool {
+fn is_appropriate_move(pieces: Vec<char>, mut piece_char: char, i_start: usize, i_try: usize) -> bool {
     let (mut xs, mut ys) = i2XY(i_start);
     let (mut xt, mut yt) = i2XY(i_try);
 
@@ -119,6 +119,8 @@ fn is_appropriate_move(pieces: Vec<char>, mut piece_char: char, i_start: u32, i_
 
     // All moves need -> king cannot be captured next move
     // Castling needs -> Piece cannot capture any of the squares between the king and rook
+    // Need to create a list of all legal moves at some point which can replace these individual
+    // functions and also be inspired by them
     match piece_char.to_lowercase().next().unwrap() {
         'r' => {
            // in + 
@@ -126,26 +128,53 @@ fn is_appropriate_move(pieces: Vec<char>, mut piece_char: char, i_start: u32, i_
             is_plus && rook_isnt_blocked(i_start, i_try, pieces)
         }
         'n' => {
-            true 
+            let knight_moves: [(i8, i8); 8] = [(2,1),(2,-1),(1,2),(-1,2),(-2,1),(-2,-1),(-1,-2),(1,-2)];
+            let delta_xy = (yt - ys, xt - xs);
+            knight_moves.contains(&delta_xy)
         }
         'b' => {
             let is_on_same_diagonal = yt - ys == xt - xs || yt - ys == xs - xt;
             is_on_same_diagonal && bishop_isnt_blocked(i_start, i_try, pieces)
         }
         'q' => {
-            true
+            let is_on_same_diagonal = yt - ys == xt - xs || yt - ys == xs - xt;
+            let is_plus = xs == xt || ys == yt;
+            if is_on_same_diagonal {
+                bishop_isnt_blocked(i_start, i_try, pieces)
+            }
+            else if is_plus {
+                rook_isnt_blocked(i_start, i_try, pieces)
+            }
+            else {
+                false
+            }
         }
         'k' => {
-            true
+            let wont_kiss_king = {
+                // where is the other king?
+                let other_king: char = if piece_char.is_ascii_uppercase() {'k'} else {'K'};
+                let other_king_i: usize;
+                if let Some(index) = pieces.iter().position(|x| *x == other_king) {
+                    other_king_i = index as usize; 
+                }
+                else {
+                    eprintln!("ERROR! Missing a king!");
+                    process::exit(1);
+                }
+                let (otherx, othery) = i2XY(other_king_i);
+                (yt - othery).pow(2) + (xt - otherx).pow(2) > 2
+            };
+            (xt - xs).abs() <= 1 && (yt - ys).abs() <= 1 && wont_kiss_king
         }
         'p' => {
             // TODO en passent
+            // TODO checks out of bounds at some point when at top of board for ex
             // TODO promotion, note: autoqueen for simplicity
             let is_white = piece_char == 'P';
-            let color_scalar = is_white as i32 * 2 - 1;
+            let color_scalar = is_white as i8 * 2 - 1;
             let moved_forward = yt - ys == -1 * color_scalar;
             let moved_forward_2 = yt - ys == -2 * color_scalar;
-            let empty_facing = pieces[XY2i(xs, ys - 1 * color_scalar) as usize] == 'X';
+            let empty_facing = pieces[XY2i(xs, ys - 1 * color_scalar)] == 'X';
             let is_first_move = if is_white {
                 ys == SIDE_LENGTH - 2
             }
@@ -155,7 +184,7 @@ fn is_appropriate_move(pieces: Vec<char>, mut piece_char: char, i_start: u32, i_
 
             let is_double_push = moved_forward_2 && xs == xt && is_first_move && empty_facing; 
             let is_normal_push = moved_forward && xs == xt && empty_facing;
-            let is_take = moved_forward && (xs - xt).abs() == 1 && pieces[XY2i(xt, yt) as usize] != 'X';
+            let is_take = moved_forward && (xs - xt).abs() == 1 && pieces[XY2i(xt, yt)] != 'X';
 
             is_double_push || is_normal_push || is_take
         }
@@ -203,7 +232,7 @@ fn draw_from_char (piece_textures: HashMap<char, Texture2D>, pieces: Vec<char>, 
 //     for c in fen.chars() {
 //         if c.is_digit(10) {
 //             // println!("Skipping {c} squares");
-//             boardi += c as u32 - ('0' as u32);
+//             boardi += c as u8 - ('0' as u32);
 //         }
 //         else if c == '/' {
 //                 // println!("Next line");
@@ -232,14 +261,14 @@ fn draw_from_char (piece_textures: HashMap<char, Texture2D>, pieces: Vec<char>, 
 // }
 
 fn draw_board() {
-    for x in 0..SIDE_LENGTH {
-        for y in 0..SIDE_LENGTH {
+    for X in 0..SIDE_LENGTH {
+        for Y in 0..SIDE_LENGTH {
             draw_rectangle(
-                (x * SQUARE_WIDTH!()) as f32,
-                (y * SQUARE_HEIGHT!()) as f32,
+                (X as i16 * SQUARE_WIDTH!()) as f32,
+                (Y as i16 * SQUARE_HEIGHT!()) as f32,
                 SQUARE_WIDTH!() as f32,
                 SQUARE_HEIGHT!() as f32,
-                if (x + y) % 2 == 0 {WHITE} else {BROWN});
+                if (X + Y) % 2 == 0 {WHITE} else {BROWN});
         }
     }
 }
@@ -249,7 +278,7 @@ fn is_white(c: char) -> bool {
 }
 
 #[macroquad::main(conf)]
-async fn main() {
+async fn main() {  
 
 
     // let fen: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR";
@@ -269,7 +298,7 @@ async fn main() {
         ('P', load_texture("../images/P.png").await.unwrap()),
     ]);
     let mut dragging: bool = false;
-    let mut last_selected: Option<u32> = None; // an i
+    let mut last_selected: Option<usize> = None; // an i
     let mut last_piece: char = 'X';
     
     loop {
@@ -286,9 +315,9 @@ async fn main() {
             dragging = true;
             let (click_x,click_y) = m2XY();
             // What piece did you click on?
-            last_selected = Some(XY2i(click_x, click_y) as u32);
+            last_selected = Some(XY2i(click_x, click_y));
             if let Some(value) = last_selected {
-                last_piece = pieces[value as usize];
+                last_piece = pieces[value];
                 pieces[value as usize] = 'X';
             } else {
                 eprintln!("Beyond me if there's an error here");
@@ -306,8 +335,8 @@ async fn main() {
                 // Check if legal
                 let mut legal: bool = false;
                 let (a,b) = m2XY(); 
-                let now_selected = XY2i(a,b) as u32; 
-                let now_piece = pieces[now_selected as usize];
+                let now_selected = XY2i(a,b); 
+                let now_piece = pieces[now_selected];
                 if let Some(value) = last_selected {
 
                     let is_opposite_color: bool = !(is_white(last_piece) == is_white(now_piece) && now_piece != 'X');
@@ -318,11 +347,11 @@ async fn main() {
 
                     // if illegal
                     if !legal {
-                        pieces[value as usize] = last_piece;
+                        pieces[value] = last_piece;
                     } 
                     // if legal (move the piece)
                     else {
-                        pieces[now_selected as usize] = last_piece;
+                        pieces[now_selected] = last_piece;
                     }
                 }
                 else {
@@ -338,10 +367,10 @@ async fn main() {
         }
         
         // Hilighting
-        let (x,y) = m2XY();
+        let (X,Y) = m2XY();
         draw_rectangle(
-                (x * SQUARE_WIDTH!()) as f32,
-                (y * SQUARE_HEIGHT!()) as f32,
+                (X as i16 * SQUARE_WIDTH!()) as f32,
+                (Y as i16 * SQUARE_HEIGHT!()) as f32,
                 SQUARE_WIDTH!() as f32,
                 SQUARE_HEIGHT!() as f32,
                 c 

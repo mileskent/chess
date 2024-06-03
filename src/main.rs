@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use std::process;
 
 const SIDE_LENGTH : i8 = 8;
-const S: i16 = 100;
 
 macro_rules! SQUARE_WIDTH {
     () => {
@@ -19,8 +18,8 @@ macro_rules! SQUARE_HEIGHT {
 
 fn m2XY() -> (i8, i8) {
     let (mut x, mut y) = mouse_position();
-    x /= S as f32;
-    y /= S as f32;
+    x /= SQUARE_WIDTH!() as f32;
+    y /= SQUARE_HEIGHT!() as f32;
     (x as i8, y as i8)
 }
 
@@ -43,12 +42,11 @@ fn XY2i(x: i8, y: i8) -> usize {
 }
 
 fn conf() -> Conf {
-    let size = (S * SIDE_LENGTH as i16) as i32;
     Conf {
         window_title: "Chess - Prototype".to_string(), //this field is not optional!
         fullscreen:false,
-        window_width:size,
-        window_height:size,
+        window_width:800,
+        window_height:800,
         //you can add other options too, or just use the default ones:
         ..Default::default()
     }
